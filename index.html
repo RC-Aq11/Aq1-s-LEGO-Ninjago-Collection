@@ -5,6 +5,8 @@
   <meta charset="UTF-8">
   <link rel="manifest" href="manifest.json">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Aq1忍者手册">
+  <meta name="theme-color" content="#151726">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-180.png">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -1314,7 +1316,45 @@
       stroke-linejoin: round;
     }
 
-</style>
+    /* 存储状态条：保存失败必须一眼看见 */
+    .storage-bar {
+      display: none;
+      max-width: 660px;
+      width: 100%;
+      box-sizing: border-box;
+      padding: 9px 12px;
+      margin-bottom: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .storage-bar.saving,
+    .storage-bar.ok,
+    .storage-bar.fail {
+      display: block;
+    }
+
+    .storage-bar.saving {
+      background: #12283a;
+      border: 1px solid #1e4056;
+      color: #7dd3fc;
+    }
+
+    .storage-bar.ok {
+      background: #0f2a1e;
+      border: 1px solid #1c4433;
+      color: #6ee7a8;
+    }
+
+    .storage-bar.fail {
+      background: #3a1414;
+      border: 1px solid #7f1d1d;
+      color: #fca5a5;
+    }
+
+  </style>
 </head>
 <body>
   <h1>
@@ -1325,6 +1365,8 @@
     <span class="title-text">阿琦的乐高忍者收藏册</span>
   </h1>
   <div class="stats" id="stats">共 0 个人仔</div>
+  <!-- 保存状态：成功一闪而过，失败会一直挂着 -->
+  <div class="storage-bar" id="storageBar"></div>
 
   <div class="form">
     <input class="name" id="inName" placeholder="人仔名字（如：初代赞）">
@@ -1384,6 +1426,7 @@
   <div class="backup">
     <button id="btnExport">导出备份</button>
     <button id="btnImport">导入备份</button>
+    <button id="btnSlim">优化照片</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <!-- 点击图片后的大图预览 -->
@@ -1462,32 +1505,277 @@
 
 <script>
     // ========== 1. 数据 ==========
+    // 手机主屏应用（尤其 iOS）内存和配额都比电脑紧，一次写几十 MB 会被中止甚至被杀进程。
+    // 所以拆成「文字」+「照片」两个小仓库，一条一条写，并且每次都等事务真的提交。
     let figs = [];   // 先空数组，稍后从 IndexedDB 加载
     let db = null;   // 数据库连接
+    let storageState = 'init';   // init / ok / fail
+    let storageError = '';       // 存储失败的原因
+    let loadSource = 'none';     // idb / legacy / localstorage / none
+
+    const DB_NAME = 'ninjago_db';
+    const DB_VER = 2;
+    const LS_MIRROR = 'ninjago_text_mirror_v1';
 
     // 打开数据库（IndexedDB 是"异步"的，要先"开门"）
     function openDB() {
       return new Promise((resolve) => {
-        const req = indexedDB.open('ninjago_db', 1);
+        let settled = false;
+        const finish = (ok, msg) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          if (!ok) { storageError = msg || '数据库打开失败'; }
+          resolve(ok);
+        };
+        const timer = setTimeout(() => finish(false, '打开数据库超时'), 8000);
+        if (typeof indexedDB === 'undefined' || !indexedDB) {
+          finish(false, '这个浏览器不支持 IndexedDB');
+          return;
+        }
+        let req;
+        try {
+          req = indexedDB.open(DB_NAME, DB_VER);
+        } catch (err) {
+          finish(false, '无法打开数据库：' + ((err && err.message) || err));
+          return;
+        }
         req.onupgradeneeded = (e) => {
           const d = e.target.result;
-          if (!d.objectStoreNames.contains('figs')) {
-            d.createObjectStore('figs');
-          }
+          if (!d.objectStoreNames.contains('figs')) d.createObjectStore('figs');   // v1 遗留，只用于迁移
+          if (!d.objectStoreNames.contains('figs_v2')) d.createObjectStore('figs_v2', { keyPath: 'id' });
+          if (!d.objectStoreNames.contains('photos')) d.createObjectStore('photos', { keyPath: 'id' });
+          if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
         };
-        req.onsuccess = (e) => { db = e.target.result; resolve(); };
-        req.onerror = () => resolve();
+        req.onblocked = () => finish(false, '数据库被其它标签页占用，请关掉其它页面再试');
+        req.onsuccess = (e) => {
+          db = e.target.result;
+          db.onversionchange = () => { try { db.close(); } catch (_) {} db = null; storageState = 'fail'; };
+          finish(true);
+        };
+        req.onerror = () => finish(false, '浏览器拒绝打开数据库' + (req.error && req.error.name ? '（' + req.error.name + '）' : ''));
+      });
+    }
+
+    // 等事务真正提交（旧代码 put 完就走，等于没写）
+    function txDone(tx) {
+      return new Promise((resolve, reject) => {
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error || new Error('写入失败'));
+        tx.onabort = () => reject(tx.error || new Error('写入被中止'));
+      });
+    }
+
+    function readStore(name) {
+      return new Promise((resolve, reject) => {
+        if (!db) { reject(new Error('数据库未打开')); return; }
+        let tx;
+        try { tx = db.transaction(name, 'readonly'); } catch (err) { reject(err); return; }
+        const req = tx.objectStore(name).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error || new Error('读取失败'));
+      });
+    }
+
+    function readMetaVal(key) {
+      return new Promise((resolve) => {
+        if (!db) { resolve(null); return; }
+        try {
+          const tx = db.transaction('meta', 'readonly');
+          const req = tx.objectStore('meta').get(key);
+          req.onsuccess = () => resolve(req.result ? req.result.v : null);
+          req.onerror = () => resolve(null);
+        } catch (err) { resolve(null); }
+      });
+    }
+
+    // 一条 fig 拆成「文字」和「照片」两半
+    function splitFig(fig) {
+      return {
+        text: { id: fig.id, name: fig.name, no: fig.no, price: fig.price, note: fig.note },
+        photo: { id: fig.id, photo: fig.photo || '', photoOriginal: fig.photoOriginal || '' }
+      };
+    }
+
+    function joinFig(text, photoRec) {
+      const p = photoRec || {};
+      return {
+        id: text.id, name: text.name || '', no: text.no || '',
+        price: text.price || 0, note: text.note || '',
+        photo: p.photo || '', photoOriginal: p.photoOriginal || ''
+      };
+    }
+
+    // 老 v1：整个数组存在 figs 仓库的 'figs' 键里
+    function readLegacy() {
+      return new Promise((resolve) => {
+        if (!db || !db.objectStoreNames.contains('figs')) { resolve(null); return; }
+        try {
+          const tx = db.transaction('figs', 'readonly');
+          const req = tx.objectStore('figs').get('figs');
+          req.onsuccess = () => resolve(Array.isArray(req.result) ? req.result : null);
+          req.onerror = () => resolve(null);
+        } catch (err) { resolve(null); }
       });
     }
 
     // 从 IndexedDB 读取收藏
-    function loadFigs() {
-      return new Promise((resolve) => {
-        if (!db) { resolve([]); return; }
-        const tx = db.transaction('figs', 'readonly');
-        const req = tx.objectStore('figs').get('figs');
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
+    async function loadFigs() {
+      if (!db) return { figs: [], source: 'none' };
+      const [texts, photos, order] = await Promise.all([
+        readStore('figs_v2'), readStore('photos'), readMetaVal('order')
+      ]);
+      if (texts.length) {
+        const pmap = new Map(photos.map(p => [p.id, p]));
+        const byId = new Map(texts.map(t => [t.id, t]));
+        const ids = Array.isArray(order) && order.length ? order : texts.map(t => t.id);
+        const list = [];
+        ids.forEach(id => {
+          const t = byId.get(id);
+          if (!t) return;
+          byId.delete(id);
+          list.push(joinFig(t, pmap.get(id)));
+        });
+        byId.forEach(t => list.push(joinFig(t, pmap.get(t.id))));   // order 里漏掉的也补回来
+        return { figs: list, source: 'idb' };
+      }
+      const legacy = await readLegacy();
+      if (legacy && legacy.length) {
+        await migrateLegacy(legacy);
+        return { figs: legacy, source: 'legacy' };
+      }
+      return { figs: [], source: 'none' };
+    }
+
+    // v1 -> v2 迁移：先把新结构写完，成功了才标记版本
+    async function migrateLegacy(list) {
+      try {
+        for (const fig of list) {
+          const tx = db.transaction(['figs_v2', 'photos'], 'readwrite');
+          const done = txDone(tx);
+          const sp = splitFig(fig);
+          tx.objectStore('figs_v2').put(sp.text);
+          tx.objectStore('photos').put(sp.photo);
+          await done;
+        }
+        const tx2 = db.transaction('meta', 'readwrite');
+        const done2 = txDone(tx2);
+        tx2.objectStore('meta').put({ k: 'order', v: list.map(f => f.id) });
+        tx2.objectStore('meta').put({ k: 'version', v: 2 });
+        await done2;
+        return true;
+      } catch (err) {
+        storageError = storageError || ('迁移失败：' + ((err && err.message) || err));
+        return false;
+      }
+    }
+
+    // 写一条（文字 + 照片 + 顺序），等事务提交
+    function persistFig(fig) {
+      if (!db) return Promise.reject(new Error('数据库未打开'));
+      let tx;
+      try {
+        tx = db.transaction(['figs_v2', 'photos', 'meta'], 'readwrite');
+      } catch (err) { return Promise.reject(err); }
+      const done = txDone(tx);
+      try {
+        const sp = splitFig(fig);
+        tx.objectStore('figs_v2').put(sp.text);
+        tx.objectStore('photos').put(sp.photo);
+        tx.objectStore('meta').put({ k: 'order', v: figs.map(f => f.id) });
+        tx.objectStore('meta').put({ k: 'version', v: 2 });
+      } catch (err) {
+        try { tx.abort(); } catch (_) {}
+        return Promise.reject(err);
+      }
+      return done;
+    }
+
+    // 删一条
+    function removeFig(id) {
+      if (!db) return Promise.reject(new Error('数据库未打开'));
+      const tx = db.transaction(['figs_v2', 'photos', 'meta'], 'readwrite');
+      const done = txDone(tx);
+      tx.objectStore('figs_v2').delete(id);
+      tx.objectStore('photos').delete(id);
+      tx.objectStore('meta').put({ k: 'order', v: figs.filter(f => f.id !== id).map(f => f.id) });
+      return done;
+    }
+
+    // 整批写入（导入用）：逐条小事务，避免一次克隆几十 MB 被手机杀掉
+    async function persistAll(list, onProgress) {
+      if (!db) throw new Error('数据库未打开');
+      const tx = db.transaction(['figs_v2', 'photos'], 'readwrite');
+      const clearDone = txDone(tx);
+      tx.objectStore('figs_v2').clear();
+      tx.objectStore('photos').clear();
+      await clearDone;
+      for (let i = 0; i < list.length; i++) {
+        const sp = splitFig(list[i]);
+        const t = db.transaction(['figs_v2', 'photos'], 'readwrite');
+        const d = txDone(t);
+        t.objectStore('figs_v2').put(sp.text);
+        t.objectStore('photos').put(sp.photo);
+        await d;
+        if (onProgress) onProgress(i + 1, list.length);
+      }
+      const t2 = db.transaction('meta', 'readwrite');
+      const d2 = txDone(t2);
+      t2.objectStore('meta').put({ k: 'order', v: list.map(f => f.id) });
+      t2.objectStore('meta').put({ k: 'version', v: 2 });
+      await d2;
+      return list.length;
+    }
+
+    // 纯文字镜像：照片太大塞不进 localStorage，但至少名字/编号/备注不会凭空消失
+    function writeTextMirror() {
+      try {
+        const slim = figs.map(f => ({ id: f.id, name: f.name, no: f.no, price: f.price, note: f.note, hasPhoto: !!f.photo }));
+        localStorage.setItem(LS_MIRROR, JSON.stringify({ at: Date.now(), figs: slim }));
+      } catch (err) { /* 配额不足就算了，不影响主流程 */ }
+    }
+
+    function readTextMirror() {
+      try {
+        const raw = localStorage.getItem(LS_MIRROR);
+        if (!raw) return null;
+        const obj = JSON.parse(raw);
+        if (obj && Array.isArray(obj.figs)) return obj.figs;
+      } catch (err) { /* 忽略 */ }
+      return null;
+    }
+
+    // 存储状态条：保存中 / 已保存 / 保存失败 都要看得见
+    function setStorageBar(state, err) {
+      const el = document.getElementById('storageBar');
+      if (!el) return;
+      clearTimeout(setStorageBar._t);
+      if (state === 'ok') {
+        el.className = 'storage-bar ok';
+        el.textContent = '✓ 已保存到本机';
+        setStorageBar._t = setTimeout(() => { el.className = 'storage-bar'; el.textContent = ''; }, 1800);
+      } else if (state === 'saving') {
+        el.className = 'storage-bar saving';
+        el.textContent = '正在保存…';
+      } else {
+        el.className = 'storage-bar fail';
+        el.textContent = '⚠ 保存失败：' + (err || '未知原因') + '（数据还留在页面上，请立刻导出备份）';
+      }
+    }
+
+    // 所有写入都从这里走：失败会被显示出来，而不是悄悄丢掉
+    function saveNow(promise) {
+      setStorageBar('saving');
+      return Promise.resolve(promise).then(() => {
+        writeTextMirror();
+        setStorageBar('ok');
+        return true;
+      }).catch((err) => {
+        const name = err && err.name;
+        const msg = name === 'QuotaExceededError' ? '手机存储空间不足'
+          : ((err && err.message) || String(err));
+        setStorageBar('fail', msg);
+        return false;
       });
     }
     let sortMode = 'default';// 排序方式：default / asc / desc
@@ -1596,15 +1884,58 @@
     }
 
     // 压缩原图（保留大图，供以后重新裁剪）
+// 手机上 1500px 太占地方：改成 1024px / q0.7，体积大约少一半
 function compressOriginal(img, callback) {
-  const maxW = 1500;
+  const maxW = 1024;
   const scale = Math.min(1, maxW / img.width);
   const w = Math.max(1, Math.round(img.width * scale));
   const h = Math.max(1, Math.round(img.height * scale));
   const canvas = document.createElement('canvas');
   canvas.width = w; canvas.height = h;
   canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-  callback(canvas.toDataURL('image/jpeg', 0.75));
+  callback(canvas.toDataURL('image/jpeg', 0.7));
+}
+
+// 把已有的 dataURL 图片重新编码成更小的版本（用于「优化照片」）
+function reencodeDataUrl(dataUrl, maxW, quality) {
+  return new Promise((resolve) => {
+    if (!dataUrl || dataUrl.indexOf('data:image') !== 0) { resolve(dataUrl || ''); return; }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const cv = document.createElement('canvas');
+        cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(cv.toDataURL('image/jpeg', quality));
+      } catch (e) { resolve(dataUrl); }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+// 一键优化：把所有已存照片压小并逐条写回，给手机腾空间
+async function slimPhotos() {
+  if (!figs.length) { alert('还没有人仔，不用优化'); return; }
+  if (!confirm('会把所有照片重新压缩一遍（更省手机空间，画质略降），确定吗？')) return;
+  let saved = 0;
+  setStorageBar('saving');
+  for (let i = 0; i < figs.length; i++) {
+    const fig = figs[i];
+    const before = (fig.photo || '').length + (fig.photoOriginal || '').length;
+    fig.photo = await reencodeDataUrl(fig.photo, 500, 0.75);
+    fig.photoOriginal = await reencodeDataUrl(fig.photoOriginal, 1024, 0.7);
+    const after = (fig.photo || '').length + (fig.photoOriginal || '').length;
+    saved += Math.max(0, before - after);
+    const el = document.getElementById('storageBar');
+    if (el) { el.className = 'storage-bar saving'; el.textContent = '正在优化照片 ' + (i + 1) + '/' + figs.length + '…'; }
+    await saveNow(persistFig(fig));
+  }
+  render();
+  alert('优化完成，大约省下 ' + (saved / 1048576).toFixed(1) + ' MB。建议重新导出一次备份。');
 }
 
     // 读图片文件 -> 打开裁剪器
@@ -1663,7 +1994,7 @@ function compressOriginal(img, callback) {
       const out = document.createElement('canvas');
       out.width = 500; out.height = 500;
       out.getContext('2d').drawImage(cropImg, srcX, srcY, srcW, srcH, 0, 0, 500, 500);
-      const dataUrl = out.toDataURL('image/jpeg', 0.85);
+      const dataUrl = out.toDataURL('image/jpeg', 0.75);
       cropper.style.display = 'none';
       cropImg = null;
       if (cropCallback) cropCallback(dataUrl);
@@ -1688,7 +2019,10 @@ function compressOriginal(img, callback) {
     function exportData() {
       const d = new Date();
       const name = '忍者收藏备份_' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + '.json';
-      const blob = new Blob([JSON.stringify(figs)], { type: 'application/json' });
+      const json = JSON.stringify(figs);
+      const mb = json.length / 1048576;
+      if (mb > 20 && !confirm('备份大约 ' + mb.toFixed(1) + ' MB。手机端可能存不下这么大的数据，建议先点「优化照片」再导出。\n\n点「确定」仍然现在导出。')) return;
+      const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1697,28 +2031,78 @@ function compressOriginal(img, callback) {
       URL.revokeObjectURL(url);
     }
 
+    // 备份数据规范化：补 id、去掉重复、字段兜底
+    function normalizeImport(data) {
+      const seen = new Set();
+      return data.map((raw, i) => {
+        const f = (raw && typeof raw === 'object') ? raw : {};
+        let id = Number(f.id);
+        if (!id || !isFinite(id) || seen.has(id)) id = Date.now() + i;
+        seen.add(id);
+        return {
+          id: id,
+          name: String(f.name == null ? '' : f.name),
+          no: String(f.no == null ? '' : f.no),
+          price: Number(f.price) || 0,
+          note: String(f.note == null ? '' : f.note),
+          photo: typeof f.photo === 'string' ? f.photo : '',
+          photoOriginal: typeof f.photoOriginal === 'string' ? f.photoOriginal : ''
+        };
+      });
+    }
+
     // 导入备份：读文件内容，恢复收藏
+    // 关键：逐条写、等写完、再读回来核对条数，确认无误才说"导入成功"
     function importData(file) {
       const reader = new FileReader();
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
+        let list;
         try {
           const data = JSON.parse(e.target.result);
           if (!Array.isArray(data)) { alert('文件格式不对'); return; }
-          if (!confirm('导入会覆盖当前的 ' + figs.length + ' 个人仔，确定继续吗？')) return;
-          figs = data;
-          save();
-          render();
-          alert('导入成功！共 ' + figs.length + ' 个人仔');
+          list = normalizeImport(data);
         } catch (err) {
           alert('导入失败：文件不是有效的备份');
+          return;
+        }
+        if (!confirm('导入会覆盖当前的 ' + figs.length + ' 个人仔，确定继续吗？')) return;
+        if (!db) {
+          figs = list;
+          render();
+          setStorageBar('fail', '数据库没有打开，数据只在页面上');
+          alert('这台设备打不开本地数据库，导入的数据只留在页面上，刷新就会丢。请先在能保存的设备上操作。');
+          return;
+        }
+        const previous = figs.slice();
+        setStorageBar('saving');
+        try {
+          await persistAll(list, (done, total) => {
+            const el = document.getElementById('storageBar');
+            if (el) {
+              el.className = 'storage-bar saving';
+              el.textContent = '正在保存 ' + done + '/' + total + '…';
+            }
+          });
+          figs = list;
+          writeTextMirror();
+          render();
+          // 读回校验：条数对得上才算真的落盘
+          const check = await loadFigs();
+          if (check.figs.length !== list.length) {
+            throw new Error('写入后只读到 ' + check.figs.length + ' 条（应为 ' + list.length + ' 条）');
+          }
+          setStorageBar('ok');
+          alert('导入成功！共 ' + figs.length + ' 个人仔（已写入本机）');
+        } catch (err) {
+          const name = err && err.name;
+          const msg = name === 'QuotaExceededError' ? '手机存储空间不足' : ((err && err.message) || String(err));
+          setStorageBar('fail', msg);
+          // 尽量把原来的数据写回去，别让半截导入把旧数据也弄没
+          try { if (previous.length) { await persistAll(previous); figs = previous; render(); } } catch (_) {}
+          alert('导入失败：' + msg + '\n\n已恢复成导入前的数据，你的备份文件还在，可以点「优化照片」或清理手机空间后再试一次。');
         }
       };
       reader.readAsText(file);
-    }
-    function save() {
-      if (!db) return;
-      const tx = db.transaction('figs', 'readwrite');
-      tx.objectStore('figs').put(figs, 'figs');
     }
     function escapeHtml(str) {
       return String(str == null ? '' : str).replace(/[&<>"]/g, c => (
@@ -1815,7 +2199,7 @@ function compressOriginal(img, callback) {
 
       };
       figs.push(fig);
-      save();
+      saveNow(persistFig(fig));
       render();
       inName.value = ''; inNo.value = ''; inPrice.value = ''; inNote.value = '';
       resetPhotoPick();
@@ -1878,7 +2262,7 @@ function compressOriginal(img, callback) {
       const at = Math.min(undoRecord.index, figs.length);
       figs.splice(at, 0, fig);
       hideUndo();
-      save();
+      saveNow(persistFig(fig));
       render();
       // 滚到它身上闪一下，让你看见它回来了
       const back = document.querySelector('.card[data-id="' + fig.id + '"]');
@@ -1912,7 +2296,7 @@ function compressOriginal(img, callback) {
         const removed = figs[idx];
         figs.splice(idx, 1);
         disarmDelete();
-        save();
+        saveNow(removeFig(removed.id));
         render();
         showUndo(removed, idx);
         return;
@@ -1946,7 +2330,7 @@ function compressOriginal(img, callback) {
         editingId = null;
         pendingPhoto = null;
         pendingOriginal = null;
-        save();
+        if (fig) saveNow(persistFig(fig));
         render();
         return;
       }
@@ -1981,6 +2365,8 @@ function compressOriginal(img, callback) {
     importFile.addEventListener('change', () => {
       if (importFile.files[0]) importData(importFile.files[0]);
     });
+    const btnSlim = document.getElementById('btnSlim');
+    if (btnSlim) btnSlim.addEventListener('click', slimPhotos);
     btnCancel.addEventListener('click', () => {
       editingId = null;
       btnAdd.textContent = '确定';
@@ -2154,10 +2540,84 @@ function compressOriginal(img, callback) {
       }
     });
 
-    openDB().then(() => loadFigs()).then((data) => {
-      figs = data;
+    // ========== 8. 启动 ==========
+    // 顺序很重要：先确认存储能不能用，再决定是读库、迁移老数据、还是读文字兜底
+    (async function boot() {
+      const ok = await openDB();
+      storageState = ok ? 'ok' : 'fail';
+      let loaded = { figs: [], source: 'none' };
+      if (ok) {
+        try {
+          loaded = await loadFigs();
+        } catch (err) {
+          storageState = 'fail';
+          storageError = storageError || ((err && err.message) || '读取失败');
+        }
+      }
+      loadSource = loaded.source;
+      if (loaded.figs && loaded.figs.length) {
+        figs = loaded.figs;
+      } else {
+        // 数据库里没有：试试纯文字兜底，至少别让整本册子归零
+        const mirror = readTextMirror();
+        if (mirror && mirror.length) {
+          figs = mirror.map(m => ({
+            id: m.id, name: m.name || '', no: m.no || '', price: m.price || 0,
+            note: m.note || '', photo: '', photoOriginal: ''
+          }));
+          loadSource = 'localstorage';
+        }
+      }
       render();
-    });
+      if (loadSource === 'localstorage') {
+        setStorageBar('fail', '照片没能恢复，只找回了文字记录，请重新导入备份');
+      } else if (storageState === 'fail') {
+        setStorageBar('fail', storageError || '这台设备不允许保存数据');
+      }
+      if (/[?&]selftest=1/.test(location.search)) runSelfTest(ok);
+    })();
+
+    // 自检：只写 meta 里的一个时间戳，绝不碰真实收藏
+    async function runSelfTest(openOk) {
+      const box = document.createElement('pre');
+      box.id = 'selftestResult';
+      box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#111;color:#7dd3fc;font-size:11px;padding:8px;max-width:90vw;white-space:pre-wrap;';
+      document.body.appendChild(box);
+      const log = (s) => { box.textContent += s + '\n'; };
+      log('selftest open=' + openOk + ' db=' + (db ? 'yes' : 'no'));
+      let prev = null;
+      try {
+        prev = await readMetaVal('selftest_at');
+        const stamp = Date.now();
+        const tx = db.transaction('meta', 'readwrite');
+        const d = txDone(tx);
+        tx.objectStore('meta').put({ k: 'selftest_at', v: stamp });
+        await d;
+        const back = await readMetaVal('selftest_at');
+        // 再用 id=-1 的临时记录测一遍「文字 + 照片」是真的写进去了（测完删掉，不动真实收藏）
+        const probeFig = { id: -1, name: '__selftest__', no: '', price: 0, note: '', photo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', photoOriginal: '' };
+        await persistFig(probeFig);
+        const texts = await readStore('figs_v2');
+        const photos = await readStore('photos');
+        const hitT = texts.find(t => t.id === -1);
+        const hitP = photos.find(p => p.id === -1);
+        const txDel = db.transaction(['figs_v2', 'photos'], 'readwrite');
+        const dDel = txDone(txDel);
+        txDel.objectStore('figs_v2').delete(-1);
+        txDel.objectStore('photos').delete(-1);
+        await dDel;
+        const photoOk = !!(hitP && hitP.photo && hitP.photo.length > 20);
+        log('probe fig=' + (hitT ? 'yes' : 'no') + ' photo=' + (photoOk ? 'yes' : 'no'));
+        const ok = back === stamp && !!hitT && photoOk;
+        const pass = ok && (prev === null || typeof prev === 'number');
+        log(pass ? 'SELFTEST PASS' : ('SELFTEST FAIL back=' + back + ' prev=' + prev));
+        if (prev !== null) log('PERSIST PASS (previous write survived a reload)');
+        document.title = pass ? 'SELFTEST PASS' : 'SELFTEST FAIL';
+      } catch (err) {
+        log('SELFTEST FAIL: ' + ((err && err.message) || err));
+        document.title = 'SELFTEST FAIL';
+      }
+    }
   
     // ===== 编辑弹窗事件绑定 =====
     (function () {
@@ -2193,7 +2653,7 @@ function compressOriginal(img, callback) {
           f.photo = pendingPhoto;
           f.photoOriginal = pendingOriginal;
         }
-        save();
+        saveNow(persistFig(f));
         render();
         close();
         showSaveToast();
