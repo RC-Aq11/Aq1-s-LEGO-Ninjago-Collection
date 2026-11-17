@@ -466,10 +466,13 @@
       overflow: visible;
     }
 
-    .list.picmode .card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-      border: none;
+    /* 只在能用鼠标悬停的设备（电脑）上浮起 */
+    @media (hover: hover) and (pointer: fine) {
+      .list.picmode .card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+        border: none;
+      }
     }
 
     /* 银质圆环：冷灰金属拉丝，比铜钱环更克制 */
@@ -512,20 +515,22 @@
     }
 
     /* 悬停：银环变成天蓝光环 + 微微上浮 */
-    .list.picmode .card:hover .photo {
-      background: conic-gradient(
-        from 210deg,
-        #38bdf8 0%,
-        #818cf8 30%,
-        #38bdf8 55%,
-        #a5b4fc 78%,
-        #38bdf8 100%
-      );
-      box-shadow:
-        0 4px 12px rgba(0, 0, 0, 0.6),
-        0 0 14px rgba(56, 189, 248, 0.45),
-        inset 0 0 0 1px rgba(56, 189, 248, 0.3);
-      transform: translateY(-2px);
+    @media (hover: hover) and (pointer: fine) {
+      .list.picmode .card:hover .photo {
+        background: conic-gradient(
+          from 210deg,
+          #38bdf8 0%,
+          #818cf8 30%,
+          #38bdf8 55%,
+          #a5b4fc 78%,
+          #38bdf8 100%
+        );
+        box-shadow:
+          0 4px 12px rgba(0, 0, 0, 0.6),
+          0 0 14px rgba(56, 189, 248, 0.45),
+          inset 0 0 0 1px rgba(56, 189, 248, 0.3);
+        transform: translateY(-2px);
+      }
     }
 
     /* 只保留名字，其余信息隐藏 */
@@ -620,10 +625,13 @@
       transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
     }
 
-    .card:hover {
-      transform: translateY(-2px);
-      border-color: #38bdf8;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    /* 只在能用鼠标悬停的设备（电脑）上浮起 + 蓝框 */
+    @media (hover: hover) and (pointer: fine) {
+      .card:hover {
+        transform: translateY(-2px);
+        border-color: #38bdf8;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
     }
         .card.highlight {
       animation: cardFlash 0.8s ease 3;
@@ -1145,20 +1153,15 @@
         font-size: 16px;
       }
 
-      /* 四个输入框：字号明显小一点，长名字能完整显示 */
+      /* 四个输入框：字号调小 + 内边距收窄（仍是 2×2 田字格，宽度不变） */
       .form input.name,
       .form input.no,
       .form input.price,
       .form input.note {
         font-size: 14px;
         letter-spacing: -0.3px;
-      }
-
-      /* 名字和备注独占一整行，右括号不会再被吞 */
-      .form input.name,
-      .form input.note {
-        flex: 0 0 100%;
-        width: 100%;
+        padding-left: 7px;
+        padding-right: 7px;
       }
 
       .roles {
