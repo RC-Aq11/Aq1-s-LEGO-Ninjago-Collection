@@ -1145,13 +1145,20 @@
         font-size: 16px;
       }
 
-      /* 四个输入框字号略小，长名字（如「赞（初代赞）」）能完整显示 */
+      /* 四个输入框：字号明显小一点，长名字能完整显示 */
       .form input.name,
       .form input.no,
       .form input.price,
       .form input.note {
-        font-size: 15px;
-        letter-spacing: -0.2px;
+        font-size: 14px;
+        letter-spacing: -0.3px;
+      }
+
+      /* 名字和备注独占一整行，右括号不会再被吞 */
+      .form input.name,
+      .form input.note {
+        flex: 0 0 100%;
+        width: 100%;
       }
 
       .roles {
@@ -2099,8 +2106,6 @@ function compressOriginal(img, callback) {
       const d = new Date();
       const name = '忍者收藏备份_' + d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate() + '.json';
       const json = JSON.stringify(figs);
-      const mb = json.length / 1048576;
-      if (mb > 20 && !confirm('备份大约 ' + mb.toFixed(1) + ' MB。手机端可能存不下这么大的数据，建议先点「优化照片」再导出。\n\n点「确定」仍然现在导出。')) return;
       const blob = new Blob([json], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -2178,7 +2183,7 @@ function compressOriginal(img, callback) {
           setStorageBar('fail', msg);
           // 尽量把原来的数据写回去，别让半截导入把旧数据也弄没
           try { if (previous.length) { await persistAll(previous); figs = previous; render(); } } catch (_) {}
-          alert('导入失败：' + msg + '\n\n已恢复成导入前的数据，你的备份文件还在，可以点「优化照片」或清理手机空间后再试一次。');
+          alert('导入失败：' + msg + '\n\n已恢复成导入前的数据，你的备份文件还在，可以先清理手机空间、或换台设备再试一次。');
         }
       };
       reader.readAsText(file);
