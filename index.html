@@ -1502,6 +1502,7 @@
     <button id="btnExport">导出备份</button>
     <button id="btnImport">导入备份</button>
     <button id="btnSlim">优化照片</button>
+    <button id="btnKbHelp">键盘有问题？</button>
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <!-- 点击图片后的大图预览 -->
@@ -2722,29 +2723,15 @@ async function slimPhotos() {
       });
     }
 
-    // ===== 手机输入兜底：点到的输入框必须真的拿到焦点 =====
-    document.addEventListener('touchend', (e) => {
-      const t = e.target;
-      const el = (t && t.closest) ? t.closest('input, textarea') : null;
-      if (!el || el.type === 'file' || el.disabled || el.readOnly) return;
-      if (document.activeElement === el) return;
-      setTimeout(() => { try { el.focus({ preventScroll: true }); } catch (_) { el.focus(); } }, 0);
-    }, { passive: true });
+    // ⚠ 这里绝对不要再加「touchend 里 setTimeout 去 focus()」这类兜底：
+    // iOS 在手指抬起时输入框还没拿到焦点，定时器里的 focus() 属于"程序化聚焦"，
+    // 元素会获得焦点（边框变蓝）但系统不弹键盘，还会把原生点击本该弹出的键盘顶掉。
 
-    // 主屏模式（iOS 独立窗口）第一次聚焦输入框时，给一次「键盘不出来怎么办」
-    (function keyboardHintOnce() {
-      if (navigator.standalone !== true) return;
-      let shown = false;
-      try { shown = localStorage.getItem('kb_hint_shown') === '1'; } catch (_) {}
-      if (shown) return;
-      const onFocus = (e) => {
-        const t = e.target;
-        if (!t || (t.tagName !== 'INPUT' && t.tagName !== 'TEXTAREA') || t.type === 'file') return;
-        try { localStorage.setItem('kb_hint_shown', '1'); } catch (_) {}
-        document.removeEventListener('focusin', onFocus);
-        showKeyboardHint();
-      };
-      document.addEventListener('focusin', onFocus);
+    // 键盘排查说明：改成「点按钮才展开」，绝不在聚焦那一瞬间改 DOM（那会把刚起来的键盘打断）
+    (function bindKbHelp() {
+      const btn = document.getElementById('btnKbHelp');
+      if (!btn) return;
+      btn.addEventListener('click', showKeyboardHint);
     })();
 
     function showKeyboardHint() {
@@ -2753,7 +2740,7 @@ async function slimPhotos() {
       const box = document.createElement('div');
       box.id = 'kbHint';
       box.className = 'kb-hint';
-      box.innerHTML = '<b>键盘没出来？</b>这是 iOS 18 已知的系统问题。可以：① 重启 iPhone 再试；② 长按图标删除，用 Safari 重新「添加到主屏幕」；③ 急用先在 Safari 里打开本页。<button type="button" id="kbHintClose">知道了</button>';
+      box.innerHTML = '点了输入框键盘不出来时：① 换个输入法试试；② 用手机自带浏览器直接打开这个网址，对比是否正常；③ 重启手机，或删掉主屏图标后重新添加。<button type="button" id="kbHintClose">知道了</button>';
       form.insertAdjacentElement('afterend', box);
       const btn = box.querySelector('#kbHintClose');
       if (btn) btn.addEventListener('click', () => box.remove());
@@ -2771,10 +2758,15 @@ async function slimPhotos() {
       document.body.appendChild(box);
       let count = 0, last = '—';
       const upd = () => {
+        const ae = document.activeElement;
+        const aeInfo = (!ae || ae === document.body) ? '无'
+          : (ae === document.documentElement ? 'html'
+          : (ae.id ? ('#' + ae.id) : ((ae.tagName || '?').toLowerCase())));
         box.textContent = 'iOS ' + ios + ' · ' + sa
           + '\n存储 ' + (openOk ? state : '不可用') + ' · 数据源 ' + source
           + '\n焦点次数 ' + count + ' · 最近 ' + last
-          + '\n点输入框：数字变大=页面拿到焦点（系统键盘问题）；不变=页面问题';
+          + '\n当前焦点 ' + aeInfo
+          + '\n点输入框：次数变大=页面拿到了焦点；不变=页面没拿到焦点';
       };
       document.addEventListener('focusin', (e) => {
         const t = e.target;
@@ -2782,6 +2774,7 @@ async function slimPhotos() {
         last = (t && t.id) ? ('#' + t.id) : (t && t.tagName ? t.tagName.toLowerCase() : '?');
         upd();
       });
+      document.addEventListener('focusout', () => setTimeout(upd, 0));
       upd();
     }
 
