@@ -206,8 +206,7 @@
       color: #38bdf8;
     }
 
-    .form #btnAdd,
-    .form #btnCancel {
+    .form #btnAdd {
       flex: 0 0 auto;
       height: 43px;
       padding: 0 16px;
@@ -1355,16 +1354,6 @@
       color: #fca5a5;
     }
 
-    /* ===== 首屏占位：加载完成前不显示「0 个人仔」 ===== */
-    body.booting #list:empty::before {
-      content: '正在载入收藏…';
-      display: block;
-      text-align: center;
-      color: #6b7789;
-      font-size: 14px;
-      padding: 26px 0;
-    }
-
     /* 照片还没读回来时先占位，避免「无图」闪一下 */
     .card .photo.pending {
       background: linear-gradient(90deg, #151a22 25%, #1c2430 37%, #151a22 63%);
@@ -1384,54 +1373,49 @@
       touch-action: auto;
     }
 
-    /* 键盘出不来时的一次性提示 */
-    .kb-hint {
-      max-width: 660px;
-      width: 100%;
-      box-sizing: border-box;
-      margin: -4px 0 14px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: #2a2416;
-      border: 1px solid #5a4a22;
-      color: #e7d6a8;
-      font-size: 12.5px;
-      line-height: 1.6;
+
+    /* ===== 骨架屏：加载时按卡片布局占位，微光扫过 ===== */
+    .skel-photo,
+    .skel-line {
+      background: linear-gradient(90deg, #1a222c 25%, #27313f 37%, #1a222c 63%);
+      background-size: 400% 100%;
+      animation: skelShimmer 1.25s ease-in-out infinite;
     }
 
-    .kb-hint b { color: #ffd764; }
-
-    .kb-hint button {
-      margin-left: 8px;
-      background: #3a3320;
-      border: 1px solid #6b5a2a;
-      color: #e7d6a8;
-      border-radius: 6px;
-      padding: 3px 9px;
-      font-size: 12px;
+    @keyframes skelShimmer {
+      0% { background-position: 100% 0; }
+      100% { background-position: 0 0; }
     }
 
-    /* ?diag=1 诊断条 */
-    .diag-panel {
-      position: fixed;
-      left: 8px;
-      bottom: 8px;
-      z-index: 99999;
-      max-width: calc(100vw - 16px);
-      background: #0d1117;
-      border: 1px solid #2b3444;
-      color: #7dd3fc;
-      font-size: 11px;
-      line-height: 1.5;
-      padding: 7px 9px;
+    .skel-line {
+      height: 10px;
       border-radius: 6px;
-      white-space: pre-wrap;
-      word-break: break-all;
+    }
+
+    .skel-n { width: 46%; height: 14px; margin-bottom: 9px; }
+    .skel-s { width: 32%; margin-bottom: 9px; }
+    .skel-p { width: 22%; height: 12px; }
+
+    .card.skel-card {
+      pointer-events: none;
+    }
+
+    .card.skel-card:hover {
+      transform: none;
+      border-color: #25303d;
+      box-shadow: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .skel-photo,
+      .skel-line {
+        animation: none;
+      }
     }
 
   </style>
 </head>
-<body class="booting">
+<body>
   <h1>
     <div class="logos">
       <img src="lego.png" class="logo">
@@ -1456,7 +1440,7 @@
       </label>
       <button id="btnAdd">确定</button>
     </div>
-    <button id="btnCancel" style="display:none">取消</button>
+
   </div>
 
   <div class="roles">
@@ -1483,7 +1467,49 @@
   </div>
   <input class="search" id="inSearch" placeholder="🔍 搜索名字或备注…">
 
-  <div class="list" id="list"></div>
+  <div class="list" id="list">
+    <!-- 骨架屏：数据到了会被 render() 整体替换 -->
+    <div class="card skel-card" aria-hidden="true">
+      <div class="photo skel-photo"></div>
+      <div class="info">
+        <div class="skel-line skel-n"></div>
+        <div class="skel-line skel-s"></div>
+        <div class="skel-line skel-p"></div>
+      </div>
+    </div>
+    <div class="card skel-card" aria-hidden="true">
+      <div class="photo skel-photo"></div>
+      <div class="info">
+        <div class="skel-line skel-n"></div>
+        <div class="skel-line skel-s"></div>
+        <div class="skel-line skel-p"></div>
+      </div>
+    </div>
+    <div class="card skel-card" aria-hidden="true">
+      <div class="photo skel-photo"></div>
+      <div class="info">
+        <div class="skel-line skel-n"></div>
+        <div class="skel-line skel-s"></div>
+        <div class="skel-line skel-p"></div>
+      </div>
+    </div>
+    <div class="card skel-card" aria-hidden="true">
+      <div class="photo skel-photo"></div>
+      <div class="info">
+        <div class="skel-line skel-n"></div>
+        <div class="skel-line skel-s"></div>
+        <div class="skel-line skel-p"></div>
+      </div>
+    </div>
+    <div class="card skel-card" aria-hidden="true">
+      <div class="photo skel-photo"></div>
+      <div class="info">
+        <div class="skel-line skel-n"></div>
+        <div class="skel-line skel-s"></div>
+        <div class="skel-line skel-p"></div>
+      </div>
+    </div>
+  </div>
   <!-- 裁剪窗口 -->
   <div class="cropper" id="cropper" style="display:none">
     <div class="crop-title">拖动图片调整位置，用 ＋/－ 缩放</div>
@@ -1501,8 +1527,7 @@
   <div class="backup">
     <button id="btnExport">导出备份</button>
     <button id="btnImport">导入备份</button>
-    <button id="btnSlim">优化照片</button>
-    <button id="btnKbHelp">键盘有问题？</button>
+
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
   <!-- 点击图片后的大图预览 -->
@@ -1589,6 +1614,7 @@
     let storageError = '';       // 存储失败的原因
     let loadSource = 'none';     // idb / legacy / localstorage / none
     let photosPending = false;   // 照片还在读的时候，列表先显示占位块
+
 
     const DB_NAME = 'ninjago_db';
     const DB_VER = 2;
@@ -1696,30 +1722,6 @@
       });
     }
 
-    // 第一段：只读「文字表」+ 顺序，几 KB，毫秒级返回
-    async function loadTexts() {
-      if (!db) return { figs: [], source: 'none' };
-      const [texts, order] = await Promise.all([readStore('figs_v2'), readMetaVal('order')]);
-      if (texts.length) {
-        const byId = new Map(texts.map(t => [t.id, t]));
-        const ids = Array.isArray(order) && order.length ? order : texts.map(t => t.id);
-        const list = [];
-        ids.forEach(id => {
-          const t = byId.get(id);
-          if (!t) return;
-          byId.delete(id);
-          list.push(joinFig(t));
-        });
-        byId.forEach(t => list.push(joinFig(t)));   // order 里漏掉的也补回来
-        return { figs: list, source: 'idb' };
-      }
-      const legacy = await readLegacy();
-      if (legacy && legacy.length) {
-        await migrateLegacy(legacy);
-        return { figs: legacy, source: 'legacy' };
-      }
-      return { figs: [], source: 'none' };
-    }
 
     // 第二段：只读「照片表」，数据量大，单独加载
     async function loadPhotoMap() {
@@ -1889,7 +1891,7 @@
     }
     let sortMode = 'default';// 排序方式：default / asc / desc
     let viewMode = 'list';   // 视图方式：list 列表 / grid 图片墙
-    let editingId = null;   // 正在编辑的人仔 id，null 表示"添加模式"
+
     let activeRole = '';   // 当前选中的角色，空 = 全部
     const mainRoles = ['杰', '凯', '赞', '寇', '劳埃德', '妮娅', '吴'];  // 主角团（用来算"其他"）
     let pendingPhoto = null;   // 编辑时暂存的新照片 
@@ -1946,7 +1948,7 @@
     const inNo = document.getElementById('inNo');
     const inSearch = document.getElementById('inSearch');
     const btnAdd = document.getElementById('btnAdd');
-    const btnCancel = document.getElementById('btnCancel');
+
     const btnExport = document.getElementById('btnExport');
     const btnImport = document.getElementById('btnImport');
     const importFile = document.getElementById('importFile');
@@ -2005,47 +2007,6 @@ function compressOriginal(img, callback) {
   callback(canvas.toDataURL('image/jpeg', 0.7));
 }
 
-// 把已有的 dataURL 图片重新编码成更小的版本（用于「优化照片」）
-function reencodeDataUrl(dataUrl, maxW, quality) {
-  return new Promise((resolve) => {
-    if (!dataUrl || dataUrl.indexOf('data:image') !== 0) { resolve(dataUrl || ''); return; }
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxW / img.width);
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
-        const cv = document.createElement('canvas');
-        cv.width = w; cv.height = h;
-        cv.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(cv.toDataURL('image/jpeg', quality));
-      } catch (e) { resolve(dataUrl); }
-    };
-    img.onerror = () => resolve(dataUrl);
-    img.src = dataUrl;
-  });
-}
-
-// 一键优化：把所有已存照片压小并逐条写回，给手机腾空间
-async function slimPhotos() {
-  if (!figs.length) { alert('还没有人仔，不用优化'); return; }
-  if (!confirm('会把所有照片重新压缩一遍（更省手机空间，画质略降），确定吗？')) return;
-  let saved = 0;
-  setStorageBar('saving');
-  for (let i = 0; i < figs.length; i++) {
-    const fig = figs[i];
-    const before = (fig.photo || '').length + (fig.photoOriginal || '').length;
-    fig.photo = await reencodeDataUrl(fig.photo, 500, 0.75);
-    fig.photoOriginal = await reencodeDataUrl(fig.photoOriginal, 1024, 0.7);
-    const after = (fig.photo || '').length + (fig.photoOriginal || '').length;
-    saved += Math.max(0, before - after);
-    const el = document.getElementById('storageBar');
-    if (el) { el.className = 'storage-bar saving'; el.textContent = '正在优化照片 ' + (i + 1) + '/' + figs.length + '…'; }
-    await saveNow(persistFig(fig));
-  }
-  render();
-  alert('优化完成，大约省下 ' + (saved / 1048576).toFixed(1) + ' MB。建议重新导出一次备份。');
-}
 
     // 读图片文件 -> 打开裁剪器
     function pickImage(file, callback) {
@@ -2414,44 +2375,13 @@ async function slimPhotos() {
       // 点了卡片上别的地方，就取消掉"待确认"状态
       disarmDelete();
 
-      // 点编辑态照片 -> 重新裁剪
-      // 点"编辑" -> 进入行内编辑
+      // 点"编辑" -> 打开编辑弹窗
       const editBtn = e.target.closest('.edit');
       if (editBtn) {
         openEditSheet(editBtn.dataset.id);
         return;
       }
-      // 点"保存" -> 读取输入框，更新这条记录
-      const saveBtn = e.target.closest('.save');
-      if (saveBtn) {
-        const fig = figs.find(f => f.id === Number(saveBtn.dataset.id));
-        if (fig) {
-          const card = saveBtn.closest('.card');
-          fig.name = card.querySelector('.edit-name').value.trim();
-          fig.no = card.querySelector('.edit-no').value.trim();
-          fig.price = parseFloat(card.querySelector('.edit-price').value) || 0;
-          fig.note = card.querySelector('.edit-note').value.trim();
-          if (pendingPhoto !== null) {
-  fig.photo = pendingPhoto;
-  fig.photoOriginal = pendingOriginal;
-}
-        }
-        editingId = null;
-        pendingPhoto = null;
-        pendingOriginal = null;
-        if (fig) saveNow(persistFig(fig));
-        render();
-        return;
-      }
-      // 点"取消" -> 退出编辑
-      const cancelBtn = e.target.closest('.cancel');
-      if (cancelBtn) {
-        pendingPhoto = null;
-        pendingOriginal = null;
-        editingId = null;
-        render();
-        return;
-      }
+
       // 点缩略图 -> 图片模式打开角色详情，列表模式放大看图
       const img = e.target.closest('.photo img');
       if (img) {
@@ -2474,15 +2404,7 @@ async function slimPhotos() {
     importFile.addEventListener('change', () => {
       if (importFile.files[0]) importData(importFile.files[0]);
     });
-    const btnSlim = document.getElementById('btnSlim');
-    if (btnSlim) btnSlim.addEventListener('click', slimPhotos);
-    btnCancel.addEventListener('click', () => {
-      editingId = null;
-      btnAdd.textContent = '确定';
-      btnCancel.style.display = 'none';
-      inName.value = ''; inNo.value = ''; inPrice.value = ''; inNote.value = '';
-      resetPhotoPick();
-    });
+
     // 点弹窗背景或"关闭"按钮 -> 关掉大图
     lightbox.addEventListener('click', (e) => {
       if (e.target === lightbox || e.target === lightboxClose) {
@@ -2679,8 +2601,7 @@ async function slimPhotos() {
       }
       photosPending = !!(ok && figs.length);
       render();                                   // 第一段：名字/编号先上屏
-      document.body.classList.remove('booting');
-      document.body.classList.add('loaded');
+
       if (loadSource === 'localstorage') {
         setStorageBar('fail', '照片没能恢复，只找回了文字记录，请重新导入备份');
       } else if (storageState === 'fail') {
@@ -2708,7 +2629,6 @@ async function slimPhotos() {
         }
       }
       if (/[?&]selftest=1/.test(location.search)) runSelfTest(ok);
-      if (/[?&]diag=1/.test(location.search)) runDiag(ok, storageState, loadSource);
     })();
 
     // 照片到货后就地填进卡片，避免整页重渲染导致滚动跳动
@@ -2727,56 +2647,8 @@ async function slimPhotos() {
     // iOS 在手指抬起时输入框还没拿到焦点，定时器里的 focus() 属于"程序化聚焦"，
     // 元素会获得焦点（边框变蓝）但系统不弹键盘，还会把原生点击本该弹出的键盘顶掉。
 
-    // 键盘排查说明：改成「点按钮才展开」，绝不在聚焦那一瞬间改 DOM（那会把刚起来的键盘打断）
-    (function bindKbHelp() {
-      const btn = document.getElementById('btnKbHelp');
-      if (!btn) return;
-      btn.addEventListener('click', showKeyboardHint);
-    })();
 
-    function showKeyboardHint() {
-      const form = document.querySelector('.form');
-      if (!form || document.getElementById('kbHint')) return;
-      const box = document.createElement('div');
-      box.id = 'kbHint';
-      box.className = 'kb-hint';
-      box.innerHTML = '点了输入框键盘不出来时：① 换个输入法试试；② 用手机自带浏览器直接打开这个网址，对比是否正常；③ 重启手机，或删掉主屏图标后重新添加。<button type="button" id="kbHintClose">知道了</button>';
-      form.insertAdjacentElement('afterend', box);
-      const btn = box.querySelector('#kbHintClose');
-      if (btn) btn.addEventListener('click', () => box.remove());
-    }
 
-    // ?diag=1：显示环境与焦点计数，用来判断是系统还是页面
-    function runDiag(openOk, state, source) {
-      const ua = navigator.userAgent;
-      const m = ua.match(/OS (\d+)[._](\d+)/);
-      const ios = m ? (m[1] + '.' + m[2]) : '非 iOS';
-      const sa = navigator.standalone === true ? '主屏应用' : '浏览器';
-      const box = document.createElement('div');
-      box.className = 'diag-panel';
-      box.id = 'diagPanel';
-      document.body.appendChild(box);
-      let count = 0, last = '—';
-      const upd = () => {
-        const ae = document.activeElement;
-        const aeInfo = (!ae || ae === document.body) ? '无'
-          : (ae === document.documentElement ? 'html'
-          : (ae.id ? ('#' + ae.id) : ((ae.tagName || '?').toLowerCase())));
-        box.textContent = 'iOS ' + ios + ' · ' + sa
-          + '\n存储 ' + (openOk ? state : '不可用') + ' · 数据源 ' + source
-          + '\n焦点次数 ' + count + ' · 最近 ' + last
-          + '\n当前焦点 ' + aeInfo
-          + '\n点输入框：次数变大=页面拿到了焦点；不变=页面没拿到焦点';
-      };
-      document.addEventListener('focusin', (e) => {
-        const t = e.target;
-        count++;
-        last = (t && t.id) ? ('#' + t.id) : (t && t.tagName ? t.tagName.toLowerCase() : '?');
-        upd();
-      });
-      document.addEventListener('focusout', () => setTimeout(upd, 0));
-      upd();
-    }
 
     // 自检：只写 meta 里的一个时间戳，绝不碰真实收藏
     async function runSelfTest(openOk) {
