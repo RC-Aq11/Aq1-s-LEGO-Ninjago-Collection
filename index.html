@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#151726">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icon-180.png">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>阿琦的乐高忍者收藏册</title>
   <style>
   html, body { touch-action: manipulation; }
@@ -1623,7 +1623,16 @@
   </div>
 
 
-<script>
+  <script>
+    // 手机端禁用页面双指缩放（iOS 普通标签页会忽略 user-scalable，这里再拦一层）
+    (function lockZoom() {
+      const stop = (e) => { if (e.touches && e.touches.length > 1) e.preventDefault(); };
+      document.addEventListener('gesturestart', (e) => e.preventDefault());
+      document.addEventListener('gesturechange', (e) => e.preventDefault());
+      document.addEventListener('gestureend', (e) => e.preventDefault());
+      document.addEventListener('touchmove', stop, { passive: false });
+    })();
+
     // ========== 1. 数据 ==========
     // 手机主屏应用（尤其 iOS）内存和配额都比电脑紧，一次写几十 MB 会被中止甚至被杀进程。
     // 所以拆成「文字」+「照片」两个小仓库，一条一条写，并且每次都等事务真的提交。
