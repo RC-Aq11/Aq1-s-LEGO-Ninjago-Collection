@@ -1440,9 +1440,189 @@
       }
     }
 
+    /* ===== 清点模式：紧凑方格，点一下变暗 ===== */
+    .count-bar {
+      display: none;
+      width: 100%;
+      max-width: 660px;
+      box-sizing: border-box;
+      margin: 10px 0 2px;
+      padding: 7px 10px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      background: #161925;
+      border: 1px solid #2c3248;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+
+    .count-bar.show { display: flex; }
+
+    .count-bar .c-num { color: #38bdf8; font-weight: 700; }
+
+    .count-bar button {
+      background: #131920;
+      border: 1px solid #25303d;
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .count-bar button:active { transform: scale(.96); }
+
+    .list.countmode {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .list.countmode .card.count-tile {
+      position: relative;
+      display: block;
+      width: 100%;
+      min-width: 0;
+      padding: 0;
+      margin: 0;
+      background: #131920;
+      border: 1px solid #25303d;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity .18s ease, filter .18s ease, transform .12s ease;
+    }
+
+    .list.countmode .card.count-tile .photo {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      margin: 0;
+      border-radius: 0;
+      background: #0f1319;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #4b5566;
+      overflow: hidden;
+    }
+
+    .list.countmode .card.count-tile .photo img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: 0;
+    }
+
+    .list.countmode .card.count-tile .info {
+      padding: 4px 5px 5px;
+      margin: 0;
+      background: #0f1319;
+    }
+
+    .list.countmode .card.count-tile .info .n {
+      font-size: 10px;
+      line-height: 1.3;
+      font-weight: 400;
+      color: #cbd5e1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin: 0;
+    }
+
+    .list.countmode .card.count-tile.checked {
+      opacity: .25;
+      filter: grayscale(1);
+      border-color: #1b222c;
+    }
+
+    .list.countmode .card.count-tile:active { transform: scale(.96); }
+
+    @media (max-width: 480px) {
+      .list.countmode { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; }
+      .list.countmode .card.count-tile .info .n { font-size: 9.5px; }
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+      .list.countmode .card.count-tile:hover { border-color: #38bdf8; }
+    }
+
+    /* 老系统不支持 aspect-ratio 时，给个固定高度兜底，避免方块塌成 0 */
+    @supports not (aspect-ratio: 1 / 1) {
+      .list.countmode .card.count-tile .photo { height: 96px; }
+    }
+
+    /* ===== 清点入口：屏幕右上角 ===== */
+    .count-fab {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 10px);
+      right: calc(env(safe-area-inset-right, 0px) + 12px);
+      z-index: 60;
+      min-height: 42px;
+      min-width: 68px;
+      padding: 0 16px;
+      border-radius: 999px;
+      background: #161925;
+      border: 1px solid #2c3248;
+      color: #38bdf8;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, .45);
+      -webkit-tap-highlight-color: transparent;
+      transition: transform .12s, border-color .15s, color .15s;
+    }
+
+    .count-fab:active { transform: scale(.94); }
+
+    body.counting .count-fab { color: #ff8a9a; border-color: #5a2f3a; }
+
+    /* 清点页：只留搜索 + 计数 + 方格 */
+    body.counting > h1,
+    body.counting > .stats,
+    body.counting > .storage-bar,
+    body.counting > .form,
+    body.counting > .roles,
+    body.counting > .bar,
+    body.counting > .backup { display: none; }
+
+    body.counting { padding: calc(env(safe-area-inset-top, 0px) + 62px) 12px 18px; }
+
+    body.counting .search {
+      position: sticky;
+      top: calc(env(safe-area-inset-top, 0px) + 56px);
+      z-index: 5;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+
+    body.counting .count-bar { display: flex; margin-bottom: 10px; }
+
+    @media (max-width: 480px) {
+      .count-fab {
+        top: calc(env(safe-area-inset-top, 0px) + 8px);
+        right: calc(env(safe-area-inset-right, 0px) + 10px);
+        min-height: 40px;
+        padding: 0 13px;
+        font-size: 12.5px;
+      }
+      body.counting { padding: calc(env(safe-area-inset-top, 0px) + 58px) 10px 16px; }
+      body.counting .search { top: calc(env(safe-area-inset-top, 0px) + 52px); }
+    }
+
   </style>
 </head>
 <body>
+  <button class="count-fab" id="btnCount" type="button">清点</button>
   <h1>
     <div class="logos">
       <img src="lego.png" class="logo">
@@ -1493,6 +1673,11 @@
     </div>
   </div>
   <input class="search" id="inSearch" placeholder="🔍 搜索名字或备注…">
+
+  <div class="count-bar" id="countBar">
+    <span>已清点 <b class="c-num" id="countDone">0</b> / 共 <b class="c-num" id="countTotal">0</b></span>
+    <button id="countReset">重置</button>
+  </div>
 
   <div class="list" id="list">
     <!-- 骨架屏：数据到了会被 render() 整体替换 -->
@@ -1554,7 +1739,7 @@
   <div class="backup">
     <button id="btnExport">导出备份</button>
     <button id="btnImport">导入备份</button>
-    <span class="build-tag">build 2026-11-18c</span>
+    <span class="build-tag">build 2026-11-21b</span>
 
     <input type="file" id="importFile" accept=".json" style="display:none">
   </div>
@@ -1843,6 +2028,8 @@
 
     // 删一条
     function removeFig(id) {
+      counted.delete(String(id));
+      saveCounted();
       if (!db) return Promise.reject(new Error('数据库未打开'));
       const tx = db.transaction(['figs_v2', 'photos', 'meta'], 'readwrite');
       const done = txDone(tx);
@@ -1929,7 +2116,22 @@
       });
     }
     let sortMode = 'default';// 排序方式：default / asc / desc
-    let viewMode = 'list';   // 视图方式：list 列表 / grid 图片墙
+    let viewMode = 'list';   // 视图方式：list 列表 / grid 图片墙 / count 清点（由右上角按钮进入）
+    let prevView = 'list';   // 进入清点前是列表还是图片，退出时回到它
+
+    // 清点模式：已点过的人仔 id（存在 localStorage，刷新后还在）
+    const COUNTED_KEY = 'nnj_counted_v1';
+    let counted = new Set();
+    function loadCounted() {
+      try {
+        const arr = JSON.parse(localStorage.getItem(COUNTED_KEY) || '[]');
+        counted = new Set(Array.isArray(arr) ? arr.map(String) : []);
+      } catch (e) { counted = new Set(); }
+    }
+    function saveCounted() {
+      try { localStorage.setItem(COUNTED_KEY, JSON.stringify(Array.from(counted))); } catch (e) {}
+    }
+    loadCounted();
 
     let activeRole = '';   // 当前选中的角色，空 = 全部
     const mainRoles = ['杰', '凯', '赞', '寇', '劳埃德', '妮娅', '吴'];  // 主角团（用来算"其他"）
@@ -2120,6 +2322,11 @@ function compressOriginal(img, callback) {
     document.getElementById('cropZoomOut').addEventListener('click', () => zoomCrop(1 / 1.2));
     const listEl = document.getElementById('list');
     const statsEl = document.getElementById('stats');
+    const countBar = document.getElementById('countBar');
+    const countDone = document.getElementById('countDone');
+    const countTotal = document.getElementById('countTotal');
+    const countReset = document.getElementById('countReset');
+    const btnCount = document.getElementById('btnCount');
     const lightbox = document.getElementById('lightbox');
     const lightboxImg = document.getElementById('lightboxImg');
     const lightboxClose = document.getElementById('lightboxClose');
@@ -2243,6 +2450,7 @@ function compressOriginal(img, callback) {
     }
     function render() {
       listEl.classList.toggle('picmode', viewMode === 'grid');
+      listEl.classList.toggle('countmode', viewMode === 'count');
       const kw = inSearch.value.trim().toLowerCase();
       let filtered = figs.filter(f =>
         (String(f.name || '') + ' ' + String(f.note || '')).toLowerCase().includes(kw)
@@ -2264,6 +2472,7 @@ function compressOriginal(img, callback) {
 
       statsEl.textContent = '共 ' + figs.length + ' 个人仔';
       updateRoleCounts();
+      updateCountBar();
 
       if (filtered.length === 0) {
         listEl.innerHTML = '<div class="empty">还没有记录，从上面添加第一个人仔吧！</div>';
@@ -2271,6 +2480,14 @@ function compressOriginal(img, callback) {
       }
 
       listEl.innerHTML = filtered.map(f => {
+        if (viewMode === 'count') {
+          const ph = f.photo
+            ? '<div class="photo"><img src="' + f.photo + '" alt="" loading="lazy"></div>'
+            : (photosPending ? '<div class="photo pending"></div>' : '<div class="photo">无图</div>');
+          const on = counted.has(String(f.id)) ? ' checked' : '';
+          return '<div class="card count-tile' + on + '" data-id="' + f.id + '">' + ph +
+            '<div class="info"><div class="n">' + escapeHtml(f.name) + '</div></div></div>';
+        }
         const priceHtml = f.price ? '<div class="p">购入价 ¥' + Number(f.price).toFixed(2) + '</div>' : '';
         const photoHtml = f.photo
           ? '<div class="photo"><img src="' + f.photo + '" alt="" loading="lazy"></div>'
@@ -2289,6 +2506,47 @@ function compressOriginal(img, callback) {
             <button class="del" data-id="${f.id}">删除</button>
           </div>`;
       }).join('');
+    }
+
+    // 视图按钮高亮同步（清点页里列表/图片都被隐藏）
+    function syncViewButtons() {
+      document.querySelectorAll('.viewswitch button').forEach(b => {
+        b.classList.toggle('on', b.dataset.view === viewMode);
+      });
+    }
+
+    // 进入 / 退出清点页
+    function setCounting(on) {
+      if (on) {
+        if (viewMode !== 'count') prevView = viewMode;
+        viewMode = 'count';
+      } else {
+        viewMode = (prevView === 'grid') ? 'grid' : 'list';
+      }
+      document.body.classList.toggle('counting', viewMode === 'count');
+      if (btnCount) btnCount.textContent = viewMode === 'count' ? '退出' : '清点';
+      syncViewButtons();
+      window.scrollTo(0, 0);
+      render();
+    }
+
+    // 清点模式：更新顶部计数条
+    function updateCountBar() {
+      const ids = new Set(figs.map(f => String(f.id)));
+      let n = 0;
+      counted.forEach(id => { if (ids.has(id)) n++; });
+      if (countDone) countDone.textContent = String(n);
+      if (countTotal) countTotal.textContent = String(figs.length);
+      if (countBar) countBar.classList.toggle('show', viewMode === 'count');
+    }
+
+    // 清点模式：点一下变暗 / 恢复
+    function toggleCounted(id, tile) {
+      const key = String(id);
+      if (counted.has(key)) counted.delete(key); else counted.add(key);
+      saveCounted();
+      if (tile) tile.classList.toggle('checked', counted.has(key));
+      updateCountBar();
     }
 
     // ========== 4. 添加 ==========
@@ -2409,6 +2667,12 @@ function compressOriginal(img, callback) {
         return;
       }
 
+      // 清点模式：点一下变暗 / 再点恢复，不打开大图或编辑
+      if (viewMode === 'count') {
+        const tile = e.target.closest('.card.count-tile');
+        if (tile) { disarmDelete(); toggleCounted(tile.dataset.id, tile); return; }
+      }
+
       // 点了卡片上别的地方，就取消掉"待确认"状态
       disarmDelete();
 
@@ -2436,6 +2700,12 @@ function compressOriginal(img, callback) {
 
     // ========== 6. 事件绑定 ==========
     btnAdd.addEventListener('click', addFig);
+    btnCount.addEventListener('click', () => setCounting(viewMode !== 'count'));
+    countReset.addEventListener('click', () => {
+      counted.clear();
+      saveCounted();
+      render();
+    });
     btnExport.addEventListener('click', exportData);
     btnImport.addEventListener('click', () => importFile.click());
     importFile.addEventListener('change', () => {
@@ -2586,6 +2856,7 @@ function compressOriginal(img, callback) {
     document.querySelectorAll('.viewswitch button').forEach(btn => {
       btn.addEventListener('click', () => {
         viewMode = btn.dataset.view;
+        document.body.classList.remove('counting');
         document.querySelectorAll('.viewswitch button').forEach(b => b.classList.remove('on'));
         btn.classList.add('on');
         render();
@@ -2665,7 +2936,6 @@ function compressOriginal(img, callback) {
           render();
         }
       }
-      if (/[?&]selftest=1/.test(location.search)) runSelfTest(ok);
     })();
 
     // 照片到货后就地填进卡片，避免整页重渲染导致滚动跳动
@@ -2683,52 +2953,6 @@ function compressOriginal(img, callback) {
     // ⚠ 这里绝对不要再加「touchend 里 setTimeout 去 focus()」这类兜底：
     // iOS 在手指抬起时输入框还没拿到焦点，定时器里的 focus() 属于"程序化聚焦"，
     // 元素会获得焦点（边框变蓝）但系统不弹键盘，还会把原生点击本该弹出的键盘顶掉。
-
-
-
-
-    // 自检：只写 meta 里的一个时间戳，绝不碰真实收藏
-    async function runSelfTest(openOk) {
-      const box = document.createElement('pre');
-      box.id = 'selftestResult';
-      box.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;background:#111;color:#7dd3fc;font-size:11px;padding:8px;max-width:90vw;white-space:pre-wrap;';
-      document.body.appendChild(box);
-      const log = (s) => { box.textContent += s + '\n'; };
-      log('selftest open=' + openOk + ' db=' + (db ? 'yes' : 'no'));
-      let prev = null;
-      try {
-        prev = await readMetaVal('selftest_at');
-        const stamp = Date.now();
-        const tx = db.transaction('meta', 'readwrite');
-        const d = txDone(tx);
-        tx.objectStore('meta').put({ k: 'selftest_at', v: stamp });
-        await d;
-        const back = await readMetaVal('selftest_at');
-        // 再用 id=-1 的临时记录测一遍「文字 + 照片」是真的写进去了（测完删掉，不动真实收藏）
-        const probeFig = { id: -1, name: '__selftest__', no: '', price: 0, note: '', photo: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', photoOriginal: '' };
-        await persistFig(probeFig);
-        const texts = await readStore('figs_v2');
-        const photos = await readStore('photos');
-        const hitT = texts.find(t => t.id === -1);
-        const hitP = photos.find(p => p.id === -1);
-        const txDel = db.transaction(['figs_v2', 'photos'], 'readwrite');
-        const dDel = txDone(txDel);
-        txDel.objectStore('figs_v2').delete(-1);
-        txDel.objectStore('photos').delete(-1);
-        await dDel;
-        const photoOk = !!(hitP && hitP.photo && hitP.photo.length > 20);
-        log('probe fig=' + (hitT ? 'yes' : 'no') + ' photo=' + (photoOk ? 'yes' : 'no'));
-        const ok = back === stamp && !!hitT && photoOk;
-        const pass = ok && (prev === null || typeof prev === 'number');
-        log(pass ? 'SELFTEST PASS' : ('SELFTEST FAIL back=' + back + ' prev=' + prev));
-        if (prev !== null) log('PERSIST PASS (previous write survived a reload)');
-        document.title = pass ? 'SELFTEST PASS' : 'SELFTEST FAIL';
-      } catch (err) {
-        log('SELFTEST FAIL: ' + ((err && err.message) || err));
-        document.title = 'SELFTEST FAIL';
-      }
-    }
-  
     // ===== 编辑弹窗事件绑定 =====
     (function () {
       const sheet = document.getElementById('editSheet');
